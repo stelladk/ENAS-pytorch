@@ -16,14 +16,19 @@ from data.data import get_loaders
 from torch.autograd import Variable
 from micro_child import CNN
 from micro_controller import Controller
+from logger import Logger
 
 
 parser = argparse.ArgumentParser("cifar")
-parser.add_argument('--data', type=str, default='../data/cifar10', help='root folder of the dataset')
+parser.add_argument('--data', type=str, default='../data', help='root folder of the dataset')
 parser.add_argument('--dataset', type=str, default='cifar10', help='dataset name (cifar10, addnist, multnist, cifartile, language, gutenberg, geoclassing, chesseract, gameoflife)')
 parser.add_argument('--batch_size', type=int, default=160, help='batch size')
 parser.add_argument('--no-logger', action='store_true', help='disable experiment logging')
 parser.add_argument('--no-augment', action='store_true', help='disable data augmentation')
+parser.add_argument('--logger_api', type=str, default='wandb', help='logging backend (mlflow or wandb)')
+parser.add_argument('--port', type=int, default=27027, help='logging server port')
+parser.add_argument('--log_path', type=str, default=None, help='local path for logging storage')
+parser.add_argument('--tmpdir', type=str, default=None, help='base directory for all saving and logging output')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=10, help='report frequency')
@@ -32,6 +37,7 @@ parser.add_argument('--epochs', type=int, default=150, help='num of training epo
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
 parser.add_argument('--save', type=str, default='EXP', help='experiment name')
 parser.add_argument('--seed', type=int, default=2, help='random seed')
+parser.add_argument('--exp_name', type=str, default="NAS")
 
 parser.add_argument('--child_lr_max', type=float, default=0.05)
 parser.add_argument('--child_lr_min', type=float, default=0.0005)
@@ -57,7 +63,10 @@ parser.add_argument('--bl_dec', type=float, default=0.99)
 
 args = parser.parse_args()
 
-args.save = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+_save_name = 'search-{}-{}'.format(args.save, time.strftime("%Y%m%d-%H%M%S"))
+args.save = os.path.join(args.tmpdir, _save_name) if args.tmpdir else _save_name
+if args.log_path is None and args.tmpdir is not None:
+    args.log_path = args.tmpdir
 utils.create_exp_dir(args.save, scripts_to_save=glob.glob('*.py'))
 
 log_format = '%(asctime)s %(message)s'
@@ -108,25 +117,56 @@ def main():
         eps=1e-3,
     )
 
-    train_loader, reward_loader, valid_loader = get_loaders(args)
+    train_loader, reward_loader, val_loader, test_loader = get_loaders(args)
 
     scheduler = utils.LRScheduler(optimizer, args)
 
-    for epoch in range(args.epochs):
-        lr = scheduler.update(epoch)
-        logging.info('epoch %d lr %e', epoch, lr)
+    logger = Logger(experiment_name=args.exp_name, port=args.port, api=args.logger_api, enabled=not args.no_logger)
+    logger.setup_tracking(port=args.port, file_path=args.log_path)
 
-        # training
-        train_acc = train(train_loader, model, controller, optimizer)
-        logging.info('train_acc %f', train_acc)
+    with logger(group="ENAS"):
+        for attr, value in sorted(vars(args).items()):
+            if attr in ("no_logger", "api", "exp_name", "port", "log_path", "tmpdir", "log_path"):
+                continue
+            logger.log_parameter(attr, str(value))
 
-        train_controller(reward_loader, model, controller, controller_optimizer)
+        for epoch in range(args.epochs):
+            lr = scheduler.update(epoch)
+            logging.info('epoch %d lr %e', epoch, lr)
 
-        # validation
-        valid_acc = infer(valid_loader, model, controller)
-        logging.info('valid_acc %f', valid_acc)
+            # training
+            train_acc, train_loss = train(train_loader, model, controller, optimizer)
+            logging.info('train_acc %f', train_acc)
+            logger.log_metrics({
+                'training/train accuracy': train_acc,
+                'training/train loss': train_loss,
+            }, step=epoch, step_name="epoch")
 
-        utils.save(model, os.path.join(args.save, 'weights.pt'))
+            train_controller(reward_loader, model, controller, controller_optimizer)
+
+            # validation (reward split — used for controller decisions)
+            val_acc, val_loss = infer(val_loader, model, controller)
+            logging.info('valid_acc %f', val_acc)
+            logger.log_metrics({
+                'training/val accuracy': val_acc,
+                'training/val loss': val_loss,
+            }, step=epoch, step_name="epoch")
+
+            # test (held-out set — no decisions made)
+            test_acc, test_loss = infer(test_loader, model, controller)
+            logging.info('test_acc %f', test_acc)
+            logger.log_metrics({
+                'training/test accuracy': test_acc,
+                'training/test loss': test_loss,
+            }, step=epoch, step_name="epoch")
+
+            weights_path = os.path.join(args.save, 'weights.pt')
+            utils.save(model, weights_path)
+            logger.log_artifact(weights_path, name='weights')
+
+            nb_params = sum(p.numel() for p in model.parameters())
+            logger.log_metric('training/nb of parameters', nb_params, step=epoch, step_name="epoch")
+            logging.info('nb_params %d', nb_params)
 
 
 def train(train_loader, model, controller, optimizer):
@@ -158,7 +198,7 @@ def train(train_loader, model, controller, optimizer):
         if step % args.report_freq == 0:
             logging.info('train %03d %e %f', step, total_loss.avg, total_top1.avg)
 
-    return total_top1.avg
+    return total_top1.avg, total_loss.avg
 
 def train_controller(reward_loader, model, controller, controller_optimizer):
     global baseline
@@ -237,7 +277,7 @@ def infer(valid_loader, model, controller):
             logging.info('normal cell %s', str(dag[0]))
             logging.info('reduce cell %s', str(dag[1]))
 
-    return total_top1.avg
+    return total_top1.avg, total_loss.avg
 
 
 if __name__ == '__main__':
