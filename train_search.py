@@ -33,7 +33,7 @@ parser.add_argument('--log_path', type=str, default=None, help='local path for l
 parser.add_argument('--tmpdir', type=str, default=None, help='base directory for all saving and logging output')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
-parser.add_argument('--report_freq', type=float, default=10, help='report frequency')
+parser.add_argument('--report_freq', type=float, default=50, help='report frequency')
 parser.add_argument('--gpu', type=int, default=0, help='gpu device id')
 parser.add_argument('--epochs', type=int, default=150, help='num of training epochs')
 parser.add_argument('--model_path', type=str, default='saved_models', help='path to save the model')
@@ -261,8 +261,7 @@ def infer(valid_loader, model, controller):
     controller.eval()
 
     with torch.no_grad():
-        for step in range(10):
-            data, target = valid_loader.next_batch()
+        for step, (data, target) in enumerate(valid_loader):
             data = data.cuda()
             target = target.cuda()
 
@@ -276,10 +275,10 @@ def infer(valid_loader, model, controller):
             total_loss.update(loss.item(), n)
             total_top1.update(prec1.item(), n)
 
-            #if step % args.report_freq == 0:
-            logging.info('valid %03d %e %f', step, loss.item(), prec1.item())
-            logging.info('normal cell %s', str(dag[0]))
-            logging.info('reduce cell %s', str(dag[1]))
+            if step % args.report_freq == 0:
+                logging.info('valid %03d %e %f', step, loss.item(), prec1.item())
+                logging.info('normal cell %s', str(dag[0]))
+                logging.info('reduce cell %s', str(dag[1]))
 
     return total_top1.avg, total_loss.avg
 
