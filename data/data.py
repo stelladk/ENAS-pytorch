@@ -5,11 +5,10 @@ from torchvision.datasets import CIFAR10
 from torchvision import transforms
 
 # Add experimental_grow to path for tools imports
-_TOOLS_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), '..', '..', '..', 'InriaGitlab', 'experimental_grow')
-)
-if _TOOLS_PATH not in sys.path:
-    sys.path.insert(0, _TOOLS_PATH)
+if "/home/sdouka/Documents/Projects/InriaGitlab/experimental_grow/" not in sys.path:
+    sys.path.append("/home/sdouka/Documents/Projects/InriaGitlab/experimental_grow/")
+if "/home/tau/sdouka/codebase/experimental_grow" not in sys.path:
+    sys.path.append("/home/tau/sdouka/codebase/experimental_grow")
 
 from tools.augmentations import default_augmentations, get_transforms, npy_datasets
 from tools.datasets import (
