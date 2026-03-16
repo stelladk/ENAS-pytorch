@@ -142,7 +142,7 @@ def main():
             train_acc, train_loss = train(train_loader, model, controller, optimizer)
             logging.info('train_acc %f', train_acc)
             logger.log_metrics({
-                'training/train accuracy': train_acc,
+                'training/train accuracy': train_acc / 100.,
                 'training/train loss': train_loss,
             }, step=epoch, step_name="epoch")
 
@@ -152,7 +152,7 @@ def main():
             val_acc, val_loss = infer(val_loader, model, controller)
             logging.info('valid_acc %f', val_acc)
             logger.log_metrics({
-                'training/val accuracy': val_acc,
+                'training/val accuracy': val_acc / 100.,
                 'training/val loss': val_loss,
             }, step=epoch, step_name="epoch")
 
@@ -160,7 +160,7 @@ def main():
             test_acc, test_loss = infer(test_loader, model, controller)
             logging.info('test_acc %f', test_acc)
             logger.log_metrics({
-                'training/test accuracy': test_acc,
+                'training/test accuracy': test_acc / 100.,
                 'training/test loss': test_loss,
             }, step=epoch, step_name="epoch")
 
