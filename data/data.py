@@ -40,6 +40,36 @@ def _build_transform(dataset_name, augment=True):
         return transforms.Compose(aug + base)
 
 
+def get_num_classes(loader, args=None):
+    ds = loader.dataset
+    if hasattr(ds, 'num_classes'):
+        return ds.num_classes
+    if hasattr(ds, 'classes'):
+        return len(ds.classes)
+    try:
+        _, targets = next(iter(loader))
+        return int(targets.max().item()) + 1
+    except Exception:
+        pass
+    if args is not None and getattr(args, 'num_classes', None) is not None:
+        return args.num_classes
+    raise RuntimeError("Could not infer num_classes from dataset attributes, loader batch, or args")
+
+
+def get_num_channels(loader, args=None):
+    ds = loader.dataset
+    if hasattr(ds, 'num_channels'):
+        return ds.num_channels
+    try:
+        data, _ = next(iter(loader))
+        return data.shape[1]
+    except Exception:
+        pass
+    if args is not None and getattr(args, 'num_channels', None) is not None:
+        return args.num_channels
+    raise RuntimeError("Could not infer num_channels from dataset attributes, loader batch, or args")
+
+
 def get_loaders(args):
     dataset_name = getattr(args, 'dataset', 'cifar10').lower()
 
@@ -91,7 +121,7 @@ def _get_cifar10_loaders(args):
         num_workers=2,
     )
 
-    return train_loader, RepeatedDataLoader(reward_loader), reward_loader, tesist_loader
+    return train_loader, RepeatedDataLoader(reward_loader), reward_loader, test_loader
 
 
 def _get_custom_loaders(args, dataset_name):

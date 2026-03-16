@@ -12,7 +12,7 @@ import torch.nn as nn
 import torch.utils
 import torch.nn.functional as F
 
-from data.data import get_loaders
+from data.data import get_loaders, get_num_channels, get_num_classes
 from torch.autograd import Variable
 from micro_child import CNN
 from micro_controller import Controller
@@ -22,6 +22,8 @@ from logger import Logger
 parser = argparse.ArgumentParser("cifar")
 parser.add_argument('--data', type=str, default='../data', help='root folder of the dataset')
 parser.add_argument('--dataset', type=str, default='cifar10', help='dataset name (cifar10, addnist, multnist, cifartile, language, gutenberg, geoclassing, chesseract, gameoflife)')
+parser.add_argument('--num_classes', type=int, default=None, help='number of output classes (inferred from dataset if not set)')
+parser.add_argument('--num_channels', type=int, default=None, help='number of input channels (inferred from dataset if not set)')
 parser.add_argument('--batch_size', type=int, default=160, help='batch size')
 parser.add_argument('--no-logger', action='store_true', help='disable experiment logging')
 parser.add_argument('--no-augment', action='store_true', help='disable data augmentation')
@@ -96,6 +98,10 @@ def main():
     logging.info('gpu device = %d' % args.gpu)
     logging.info("args = %s", args)
 
+    train_loader, reward_loader, val_loader, test_loader = get_loaders(args)
+
+    args.num_classes = get_num_classes(train_loader, args)
+    args.num_channels = get_num_channels(train_loader, args)
     model = CNN(args)
     model.cuda()
 
@@ -116,8 +122,6 @@ def main():
         betas=(0.1,0.999),
         eps=1e-3,
     )
-
-    train_loader, reward_loader, val_loader, test_loader = get_loaders(args)
 
     scheduler = utils.LRScheduler(optimizer, args)
 

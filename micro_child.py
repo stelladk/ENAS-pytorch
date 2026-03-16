@@ -26,7 +26,7 @@ class CNN(nn.Module):
             self.aux_head_indices = [self.pool_layers[-1]+1]
 
         self.stem_conv = nn.Sequential(
-            nn.Conv2d(3, self.out_filters*3, kernel_size=3, padding=1, bias=False),
+            nn.Conv2d(args.num_channels, self.out_filters*3, kernel_size=3, padding=1, bias=False),
             nn.BatchNorm2d(self.out_filters*3),
         )
         self._compile_model()
@@ -65,10 +65,10 @@ class CNN(nn.Module):
                     nn.Linear(128,768),
                     nn.BatchNorm1d(768, track_running_stats=False),
                     nn.ReLU(),
-                    nn.Linear(768, 10),
+                    nn.Linear(768, self.args.num_classes),
                 ))
 
-        self.add_module('final_fc', nn.Linear(out_filters, 10))
+        self.add_module('final_fc', nn.Linear(out_filters, self.args.num_classes))
 
     def _compile_layer(self, module, layer_id, in_filters, out_filters):
         self._compile_calibrate(module, in_filters, out_filters)
