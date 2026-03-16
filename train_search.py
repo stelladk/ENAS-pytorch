@@ -19,8 +19,11 @@ from micro_controller import Controller
 
 
 parser = argparse.ArgumentParser("cifar")
-parser.add_argument('--data', type=str, default='../data/cifar10', help='location of the data corpus')
+parser.add_argument('--data', type=str, default='../data/cifar10', help='root folder of the dataset')
+parser.add_argument('--dataset', type=str, default='cifar10', help='dataset name (cifar10, addnist, multnist, cifartile, language, gutenberg, geoclassing, chesseract, gameoflife)')
 parser.add_argument('--batch_size', type=int, default=160, help='batch size')
+parser.add_argument('--no-logger', action='store_true', help='disable experiment logging')
+parser.add_argument('--no-augment', action='store_true', help='disable data augmentation')
 parser.add_argument('--momentum', type=float, default=0.9, help='momentum')
 parser.add_argument('--weight_decay', type=float, default=1e-4, help='weight decay')
 parser.add_argument('--report_freq', type=float, default=10, help='report frequency')
