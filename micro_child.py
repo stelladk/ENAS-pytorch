@@ -228,7 +228,7 @@ class CNN(nn.Module):
 
         x = layers[0]
         if hw[0] != hw[1]:
-            assert hw[0] // 2 == hw[1]
+            assert (hw[0] + 1) // 2 == hw[1]
             x = F.relu(x)
             x = self._factorized_reduction(x, module.reduction)
         elif c[0] != out_filters:
