@@ -1,5 +1,4 @@
 import sys
-import os
 from torch.utils.data import DataLoader, SubsetRandomSampler
 from torchvision.datasets import CIFAR10
 from torchvision import transforms
@@ -40,6 +39,8 @@ def _build_transform(dataset_name, augment=True):
 
 
 def get_num_classes(loader, args=None):
+    if args is not None and getattr(args, 'num_classes', None) is not None:
+        return args.num_classes
     ds = loader.dataset
     if hasattr(ds, 'num_classes'):
         return ds.num_classes
@@ -50,12 +51,12 @@ def get_num_classes(loader, args=None):
         return int(targets.max().item()) + 1
     except Exception:
         pass
-    if args is not None and getattr(args, 'num_classes', None) is not None:
-        return args.num_classes
-    raise RuntimeError("Could not infer num_classes from dataset attributes, loader batch, or args")
+    raise RuntimeError("Could not infer num_classes — pass --num_classes explicitly")
 
 
 def get_num_channels(loader, args=None):
+    if args is not None and getattr(args, 'num_channels', None) is not None:
+        return args.num_channels
     ds = loader.dataset
     if hasattr(ds, 'num_channels'):
         return ds.num_channels
@@ -64,8 +65,6 @@ def get_num_channels(loader, args=None):
         return data.shape[1]
     except Exception:
         pass
-    if args is not None and getattr(args, 'num_channels', None) is not None:
-        return args.num_channels
     raise RuntimeError("Could not infer num_channels from dataset attributes, loader batch, or args")
 
 

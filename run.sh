@@ -29,6 +29,7 @@ echo -e "JOB ID = ${JOB_ID}"
 echo -e "NODE NAME = ${SLURMD_NODENAME}"
 
 echo -e "DATASET = ${NAS_DATASET}"
+echo -e "CLASSES = ${NAS_CLASSES}"
 
-python train_search.py --dataset "${NAS_DATASET}"
+python train_search.py --dataset "${NAS_DATASET}" --num_classes "${NAS_CLASSES}"
 
