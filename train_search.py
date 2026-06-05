@@ -166,11 +166,15 @@ def main():
 
             weights_path = os.path.join(args.save, 'weights.pt')
             utils.save(model, weights_path)
-            logger.log_artifact(weights_path, name='weights')
 
-            nb_params = sum(p.numel() for p in model.parameters())
+            with torch.no_grad():
+                controller.eval()
+                sample_dag, _, _ = controller()
+            nb_params = model.count_active_params(*sample_dag)
             logger.log_metric('training/nb of parameters', nb_params, step=epoch, step_name="epoch")
             logging.info('nb_params %d', nb_params)
+
+        logger.log_pytorch_model(model, f"ENAS_{args.dataset}", x=None, path=args.save, run_id=False)
 
 
 def train(train_loader, model, controller, optimizer):

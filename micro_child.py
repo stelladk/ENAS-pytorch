@@ -263,6 +263,52 @@ class CNN(nn.Module):
 
         return out
 
+    def count_active_params(self, normal_arc, reduce_arc):
+        """Count parameters active in the architecture sampled by the controller.
+
+        Only the specific conv ops selected per cell branch are counted; pooling
+        and identity ops (op_id >= 2) contribute no learnable parameters.
+        Structural params (stem, calibrate, reduction, final_bn, final_fc) are
+        always counted.  For final_conv only the rows corresponding to free cell
+        outputs (not consumed by later cells) are counted.
+        """
+        def _n(m):
+            return sum(p.numel() for p in m.parameters())
+
+        nb = _n(self.stem_conv) + _n(self.final_fc)
+        if self.use_aux_heads:
+            nb += _n(self.aux_head) + _n(self.aux_fc)
+
+        for layer_id in range(self.num_layers + 2):
+            layer = self.layer[layer_id]
+            arc = reduce_arc if layer_id in self.pool_layers else normal_arc
+
+            nb += _n(layer.calibrate) + _n(layer.final_bn)
+            if layer_id in self.pool_layers:
+                nb += _n(layer.reduction)
+
+            # final_conv: count only the rows for free outputs (not pointed to)
+            used = torch.zeros(self.num_cells + 2, dtype=torch.long)
+            for cell_id in range(self.num_cells):
+                used[arc[4 * cell_id].item()] += 1
+                used[arc[4 * cell_id + 2].item()] += 1
+            params_per_row = layer.final_conv.numel() // (self.num_cells + 2)
+            nb += int((used == 0).sum()) * params_per_row
+
+            # Cell ops: only the selected branch/input/op contributes params
+            for cell_id in range(self.num_cells):
+                for branch_idx, (id_off, op_off) in enumerate([(0, 1), (2, 3)]):
+                    prev_cell = arc[4 * cell_id + id_off].item()
+                    op_id    = arc[4 * cell_id + op_off].item()
+                    cell_branch = layer.cell[cell_id][branch_idx]
+                    if op_id == 0:
+                        nb += _n(cell_branch.three[prev_cell])
+                    elif op_id == 1:
+                        nb += _n(cell_branch.five[prev_cell])
+                    # op >= 2: avg/max pool or identity — no learnable params
+
+        return nb
+
     def reset_parameters(self):
         pass
 
